@@ -1,1 +1,122 @@
 
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>تحليل وتقييم سلوك المتداول</title>
+<style>
+  body { font-family: Arial, sans-serif; padding: 20px; direction: rtl; background: #f5f5f5; }
+  .section { background: #fff; padding: 15px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 0 6px rgba(0,0,0,0.1); }
+  h2, h3 { margin-top: 0; color: #333; }
+  ul { line-height: 1.8; }
+</style>
+</head>
+<body>
+<h2>تحليل وتقييم سلوك المتداول</h2>
+<div id="analysisContainer"></div>
+
+<script>
+function analyze() {
+  const container = document.getElementById("analysisContainer");
+  const trades = JSON.parse(localStorage.getItem("savedTrades") || "[]");
+
+  if (trades.length === 0) {
+    container.innerHTML = "<p>لا توجد صفقات لتحليلها.</p>";
+    return;
+  }
+
+  const stats = {
+    total: trades.length,
+    buy: 0,
+    sell: 0,
+    profit: 0,
+    loss: 0,
+    charted: 0,
+    coins: {},
+    coinResults: {},
+    weekdays: {}
+  };
+
+  trades.forEach(t => {
+    if (t.tradeType === "buy") stats.buy++;
+    if (t.tradeType === "sell") stats.sell++;
+    if (t.status === "profit") stats.profit++;
+    if (t.status === "loss") stats.loss++;
+    if (t.chartImage) stats.charted++;
+
+    const coin = t.coinName;
+    stats.coins[coin] = (stats.coins[coin] || 0) + 1;
+    if (!stats.coinResults[coin]) stats.coinResults[coin] = { profit: 0, loss: 0 };
+    if (t.status === "profit") stats.coinResults[coin].profit++;
+    if (t.status === "loss") stats.coinResults[coin].loss++;
+
+    const date = new Date(t.date);
+    const weekday = date.toLocaleDateString("ar-EG", { weekday: 'long' });
+    stats.weekdays[weekday] = (stats.weekdays[weekday] || 0) + 1;
+  });
+
+  const dominantDay = Object.entries(stats.weekdays).sort((a, b) => b[1] - a[1])[0];
+  const dominantCoin = Object.entries(stats.coins).sort((a, b) => b[1] - a[1])[0];
+
+  // التحليل العاطفي
+  let emotionInsights = "<ul>";
+  if (stats.buy / stats.total > 0.8) {
+    emotionInsights += "<li>معظم الصفقات كانت شراء، مما قد يدل على تفاؤل دائم أو تحيّز لفرص الصعود فقط.</li>";
+  }
+  if (stats.sell / stats.total > 0.8) {
+    emotionInsights += "<li>معظم الصفقات كانت بيع، مما قد يشير إلى خوف من الصعود أو تحيز نحو التصحيحات.</li>";
+  }
+  if (dominantDay && dominantDay[1] / stats.total > 0.6) {
+    emotionInsights += `<li>تم تنفيذ ${dominantDay[1]} من أصل ${stats.total} صفقة في يوم ${dominantDay[0]} — قد يكون هذا نمطًا عاطفيًا أو وقت فراغ محدد.</li>`;
+  }
+  if (dominantCoin && stats.coins[dominantCoin[0]] > 2) {
+    const coinName = dominantCoin[0];
+    const result = stats.coinResults[coinName];
+    if (result.profit > result.loss) {
+      emotionInsights += `<li>تكرار التداول على (${coinName}) غالبًا نتيجة تجربة ناجحة سابقة.</li>`;
+    } else if (result.loss > result.profit) {
+      emotionInsights += `<li>تكرار التداول على (${coinName}) رغم الخسائر قد يدل على محاولة تعويض أو سلوك انتقامي.</li>`;
+    } else {
+      emotionInsights += `<li>تكرار التداول على (${coinName}) مع نتائج متقاربة قد يدل على تعلق بهذه العملة دون سبب واضح.</li>`;
+    }
+  }
+  emotionInsights += "</ul>";
+
+  // تقييم استخدام الاستراتيجية
+  let strategyNote = "";
+  if (stats.charted / stats.total > 0.7) {
+    strategyNote = "المتداول يرفق صور في معظم صفقاته، مما يدل على استخدام استراتيجية أو أسلوب تحليل فني منتظم.";
+  } else if (stats.charted === 0) {
+    strategyNote = "لا توجد صور مرفقة، مما يصعب معرفة وجود استراتيجية واضحة.";
+  } else {
+    strategyNote = "يتم إرفاق الصور أحيانًا فقط — مما قد يدل على عشوائية أو اعتماد جزئي على التحليل الفني.";
+  }
+
+  // تقييم عام
+  let summary = "<strong>التقييم العام:</strong><br>";
+  summary += `عدد الصفقات: ${stats.total} — نسبة الصفقات الرابحة: ${(stats.profit / stats.total * 100).toFixed(1)}%<br>`;
+  summary += `نوع الصفقات: شراء (${stats.buy}), بيع (${stats.sell})<br>`;
+  summary += `أكثر الأيام نشاطًا: ${dominantDay ? dominantDay[0] : 'غير معروف'}<br>`;
+  summary += `أكثر العملات تداولاً: ${dominantCoin ? dominantCoin[0] : 'غير معروف'}<br>`;
+
+  container.innerHTML = `
+    <div class="section">
+      <h3>تحليل السلوك العاطفي</h3>
+      ${emotionInsights}
+    </div>
+    <div class="section">
+      <h3>استخدام الاستراتيجية</h3>
+      <p>${strategyNote}</p>
+    </div>
+    <div class="section">
+      <h3>التقييم العام</h3>
+      <p>${summary}</p>
+    </div>
+  `;
+}
+
+window.onload = analyze;
+</script>
+</body>
+</html>
