@@ -1,0 +1,216 @@
+
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>حاسبة تداول</title>
+<style>
+  body { font-family: Arial, sans-serif; padding: 20px; direction: rtl; background: #f0f0f0; }
+  label { display: block; margin-top: 10px; }
+  input, select { width: 100%; padding: 8px; margin-top: 5px; box-sizing: border-box; }
+  .result { background: white; padding: 15px; margin-top: 20px; border-radius: 8px; }
+  .goal { margin-top: 10px; }
+  button.copy-btn { margin-left: 10px; }
+
+.result.buy { background-color: #e0f9e0; } /* أخضر فاتح */
+.result.sell { background-color: #fbe0e0; } /* أحمر فاتح */
+.icon-up::before { content: "⬆️ "; }
+.icon-down::before { content: "⬇️ "; }
+
+
+.error {
+  background-color: #ffe0e0;
+  color: #a30000;
+  padding: 10px;
+  margin-top: 20px;
+  border-radius: 8px;
+  font-weight: bold;
+}
+
+</style>
+</head>
+<body>
+<h2>حاسبة تداول العملات الرقمية</h2>
+<label>نوع الصفقة:
+  <select id="tradeType">
+    <option value="buy">شراء (صعود)</option>
+    <option value="sell">بيع (هبوط)</option>
+  </select>
+</label>
+
+<label>رأس المال (USD):
+  <input type="number" id="capital"  min="1" step="any" />
+</label>
+
+<label>نسبة المخاطرة (%):
+  <input type="number" id="riskPercent"  min="0.01" step="any" />
+</label>
+
+<label>سعر الدخول للعملة:
+  <input type="number" id="entryPrice"  min="0.00000001" step="any" />
+</label>
+
+<label>سعر الاستوب لوز:
+  <input type="number" id="stopLossPrice"  min="0.00000001" step="any" />
+</label>
+
+<div class="result" id="results"></div>
+
+<script>
+  function copyToClipboard(text) {
+    navigator.clipboard.writeText(text);
+    alert('تم النسخ: ' + text);
+  }
+
+  function calculate() {
+    const tradeType = document.getElementById('tradeType').value;
+    const capital = parseFloat(document.getElementById('capital').value);
+    const riskPercent = parseFloat(document.getElementById('riskPercent').value);
+    const entryPrice = parseFloat(document.getElementById('entryPrice').value);
+    const stopLossPrice = parseFloat(document.getElementById('stopLossPrice').value);
+
+    if (isNaN(capital) || isNaN(riskPercent) || isNaN(entryPrice) || isNaN(stopLossPrice)) {
+      document.getElementById('results').innerHTML = 'الرجاء إدخال قيم صحيحة.';
+      return;
+    }
+
+    if (tradeType === 'buy' && stopLossPrice >= entryPrice) {
+      document.getElementById('results').innerHTML = 'خطأ: سعر الاستوب لوز يجب أن يكون أقل من سعر الدخول عند الشراء.';
+      return;
+    }
+    if (tradeType === 'sell' && stopLossPrice <= entryPrice) {
+      document.getElementById('results').innerHTML = 'خطأ: سعر الاستوب لوز يجب أن يكون أعلى من سعر الدخول عند البيع.';
+      return;
+    }
+
+    const lossPerUnit = Math.abs(entryPrice - stopLossPrice);
+    const riskAmount = capital * (riskPercent / 100);
+    const amountUnits = riskAmount / lossPerUnit;
+    const totalTradeValue = amountUnits * entryPrice;
+
+    
+    if (totalTradeValue > capital) {
+      const resultsDiv = document.getElementById('results');
+      resultsDiv.className = 'error';
+      resultsDiv.innerHTML = 'خطأ: لا يمكنك فتح صفقة تتجاوز قيمتها رأس المال المتاح.';
+      return;
+    }
+
+if (!isFinite(amountUnits) || amountUnits <= 0) {
+      document.getElementById('results').innerHTML = 'الرجاء التأكد من القيم المدخلة.';
+      return;
+    }
+
+    const goalPercents = [riskPercent, riskPercent * 2, 4, 6, 8];
+    const goals = goalPercents.map((percent, index) => {
+      const profitAmount = capital * (percent / 100);
+      const priceDiff = profitAmount / amountUnits;
+      let goalPrice;
+      if (tradeType === 'buy') {
+        goalPrice = entryPrice + priceDiff;
+      } else {
+        goalPrice = entryPrice - priceDiff;
+      }
+      return {
+        level: index + 1,
+        price: goalPrice.toFixed(6),
+        profitAmount: profitAmount.toFixed(2),
+        profitPercent: percent.toFixed(2)
+      };
+    });
+
+    const lossUSD = riskAmount.toFixed(2);
+
+    let directionIcon = tradeType === 'buy' ? '⬆️' : '⬇️';
+let html = `<p class="${tradeType === 'buy' ? 'icon-up' : 'icon-down'}">${directionIcon} عدد العملات التي يجب ${tradeType === 'buy' ? 'شراؤها' : 'بيعها'}: 
+    <strong>${Number(amountUnits.toFixed(6)).toLocaleString('en', {maximumFractionDigits: 6})}</strong> 
+    <button class="copy-btn" onclick="copyToClipboard('${Number(amountUnits.toFixed(6)).toLocaleString('en', {maximumFractionDigits: 6})}')">نسخ</button></p>`;
+
+    html += `<p>قيمة هذه العملات عند سعر الدخول: <strong>${totalTradeValue.toFixed(2)}$</strong></p>`;
+    html += `<p>الخسارة المحتملة عند الوصول لسعر الاستوب لوز: <strong>${lossUSD}$</strong> (${riskPercent}%)</p>`;
+
+    html += '<h3>الأهداف:</h3>';
+    goals.forEach(goal => {
+      html += `<div class="goal">الهدف ${goal.level}: السعر = <strong>${goal.price}</strong> ، الربح = <strong>${goal.profitAmount}$</strong> (${goal.profitPercent}%)</div>`;
+    });
+
+    
+    const resultsDiv = document.getElementById('results');
+    resultsDiv.className = 'result ' + tradeType; // يضيف class buy أو sell
+    resultsDiv.innerHTML = html;
+    
+  }
+
+  document.querySelectorAll('input, select').forEach(el => {
+    el.addEventListener('input', calculate);
+  });
+
+  
+</script>
+
+<!-- زر حفظ الصفقة -->
+<button id="saveTradeBtn" style="margin-top: 20px;">حفظ الصفقة</button>
+
+<!-- نافذة منبثقة لإدخال اسم العملة ورفع صورة -->
+<div id="saveModal" style="display:none; position: fixed; top: 20%; left: 30%; width: 40%; background: white; padding: 20px; box-shadow: 0 0 10px #aaa; z-index: 1000;">
+  <h3>حفظ الصفقة</h3>
+  <label>اسم العملة:
+    <input type="text" id="coinName" />
+  </label>
+  <label>صورة الشارت:
+    <input type="file" id="chartImage" accept="image/*" />
+  </label>
+  <button id="confirmSave">تأكيد الحفظ</button>
+  <button onclick="document.getElementById('saveModal').style.display='none'">إلغاء</button>
+</div>
+
+<script>
+document.getElementById('saveTradeBtn').addEventListener('click', function() {
+  document.getElementById('saveModal').style.display = 'block';
+});
+
+document.getElementById('confirmSave').addEventListener('click', function() {
+  const coinName = document.getElementById('coinName').value;
+  const imageInput = document.getElementById('chartImage');
+  const tradeType = document.getElementById('tradeType').value;
+  const capital = document.getElementById('capital').value;
+  const riskPercent = document.getElementById('riskPercent').value;
+  const entryPrice = document.getElementById('entryPrice').value;
+  const stopLossPrice = document.getElementById('stopLossPrice').value;
+
+  if (!coinName || imageInput.files.length === 0) {
+    alert('يرجى إدخال اسم العملة وإرفاق صورة.');
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const chartData = e.target.result;
+    const trade = {
+      id: Date.now(),
+      coinName,
+      chartImage: chartData,
+      tradeType,
+      capital,
+      riskPercent,
+      entryPrice,
+      stopLossPrice,
+      date: new Date().toLocaleString(),
+      status: 'open'
+    };
+
+    const trades = JSON.parse(localStorage.getItem('savedTrades') || '[]');
+    trades.push(trade);
+    localStorage.setItem('savedTrades', JSON.stringify(trades));
+
+    alert('تم حفظ الصفقة بنجاح.');
+    document.getElementById('saveModal').style.display = 'none';
+  };
+
+  reader.readAsDataURL(imageInput.files[0]);
+});
+</script>
+
+</body>
+</html>
